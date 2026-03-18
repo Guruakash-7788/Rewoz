@@ -141,7 +141,7 @@ for i, place_id in enumerate(all_place_ids):
     opening_year = None
     opening_month = None
 
-    reviews = result.get("reviews", [])
+    recent_cafes_reviews = df["first_review_date"]
 
     if reviews:
 
