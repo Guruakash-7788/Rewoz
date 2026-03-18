@@ -24,7 +24,7 @@ jobs:
       - name: Run script
         run: python main.py
 
-      # 👇 ADD THIS PART
+     
       - name: Commit and push CSV
         run: |
           git config --global user.name "github-actions"
