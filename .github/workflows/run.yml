@@ -23,3 +23,12 @@ jobs:
 
       - name: Run script
         run: python main.py
+
+      # 👇 ADD THIS PART
+      - name: Commit and push CSV
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add adelaide_cafes_dataset.csv
+          git commit -m "Daily data update" || echo "No changes"
+          git push
