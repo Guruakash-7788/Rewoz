@@ -4,11 +4,19 @@
 # In[35]:
 
 
+#!/usr/bin/env python
+# coding: utf-8
+
+import os
 import requests
 import pandas as pd
 import time
+import datetime
 
-API_KEY = "AIzaSyBuwlnPm8PgiJBZubcD5YyV09i3VofwA-Y"
+API_KEY = os.getenv("GOOGLE_API_KEY")
+
+if not API_KEY:
+    raise ValueError("API key not found! Set GOOGLE_API_KEY in environment.")
 
 
 grid_points = [
