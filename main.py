@@ -1,24 +1,18 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[35]:
-
-
-#!/usr/bin/env python
-# coding: utf-8
-
 import os
 import requests
 import pandas as pd
 import time
 import datetime
 
+# Load API key from environment
 API_KEY = os.getenv("GOOGLE_API_KEY")
-
 if not API_KEY:
     raise ValueError("API key not found! Set GOOGLE_API_KEY in environment.")
 
-
+# Grid points around Adelaide
 grid_points = [
     (-34.9285, 138.6007),  # CBD
     (-34.9800, 138.5150),  # Glenelg
@@ -31,13 +25,11 @@ grid_points = [
 ]
 
 all_place_ids = set()
-
 print("Collecting cafes...\n")
 
+# Collect place IDs from Nearby Search
 for lat, lng in grid_points:
-
     url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-
     params = {
         "location": f"{lat},{lng}",
         "radius": 5000,
@@ -47,44 +39,46 @@ for lat, lng in grid_points:
     }
 
     while True:
-
         response = requests.get(url, params=params)
         data = response.json()
 
-        print("Nearby Search Status:", data.get("status"))
+        status = data.get("status")
+        print("Nearby Search Status:", status)
 
-        if data.get("status") != "OK":
+        if status != "OK":
+            print(f"Skipping this location due to status: {status}")
             break
 
         for result in data.get("results", []):
             all_place_ids.add(result["place_id"])
 
         next_page = data.get("next_page_token")
-
         if not next_page:
             break
 
+        # Wait before requesting next page token
         time.sleep(2)
-
-        params = {
-            "pagetoken": next_page,
-            "key": API_KEY
-        }
+        params = {"pagetoken": next_page, "key": API_KEY}
 
 print("\nTotal cafes discovered:", len(all_place_ids))
 
+# If no cafes were collected, stop gracefully
+if not all_place_ids:
+    print("No cafes collected. Exiting script without creating CSV.")
+    exit(0)
 
+# Fetch place details
 rows = []
-
 for i, place_id in enumerate(all_place_ids):
-
     print(f"Fetching details {i+1}/{len(all_place_ids)}")
-
     url = "https://maps.googleapis.com/maps/api/place/details/json"
-
     params = {
         "place_id": place_id,
-        "fields": "name,formatted_address,address_components,geometry,formatted_phone_number,website,rating,user_ratings_total,price_level,opening_hours,types,reviews",
+        "fields": (
+            "name,formatted_address,address_components,geometry,"
+            "formatted_phone_number,website,rating,user_ratings_total,"
+            "price_level,opening_hours,types,reviews"
+        ),
         "key": API_KEY
     }
 
@@ -93,139 +87,77 @@ for i, place_id in enumerate(all_place_ids):
 
     status = data.get("status")
     print("Details status:", status)
-
     if status != "OK":
+        print(f"Skipping place_id {place_id} due to status: {status}")
         time.sleep(2)
         continue
 
     result = data.get("result", {})
 
+    # Basic info
     name = result.get("name")
     address = result.get("formatted_address")
-
     lat = result.get("geometry", {}).get("location", {}).get("lat")
     lng = result.get("geometry", {}).get("location", {}).get("lng")
-
     phone = result.get("formatted_phone_number")
     website = result.get("website")
-
     rating = result.get("rating")
     review_count = result.get("user_ratings_total")
     price_level = result.get("price_level")
-
     types = ", ".join(result.get("types", []))
 
-    suburb = None
-    postcode = None
-    state = None
-
+    # Address components
+    suburb = postcode = state = None
     for comp in result.get("address_components", []):
-
         if "locality" in comp["types"]:
             suburb = comp["long_name"]
-
         if "postal_code" in comp["types"]:
             postcode = comp["long_name"]
-
         if "administrative_area_level_1" in comp["types"]:
             state = comp["short_name"]
 
+    # Opening hours
     opening_hours = None
-
     if "opening_hours" in result:
-        opening_hours = " | ".join(
-            result["opening_hours"].get("weekday_text", [])
-        )
+        opening_hours = " | ".join(result["opening_hours"].get("weekday_text", []))
 
-    first_review_date = None
-    opening_year = None
-    opening_month = None
-
-    recent_cafes_reviews = df["first_review_date"]
-
+    # Reviews
+    reviews = result.get("reviews", [])
+    first_review_date = opening_year = opening_month = None
     if reviews:
-
         timestamps = [r["time"] for r in reviews]
         earliest = min(timestamps)
-
         first_review_date = datetime.datetime.fromtimestamp(earliest)
-
         opening_year = first_review_date.year
         opening_month = first_review_date.month
 
-
     google_maps_url = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
-
     independent_flag = "Unknown"
     pos_hint = "Unknown"
     notes = ""
 
     rows.append([
-        name,
-        place_id,
-        address,
-        suburb,
-        postcode,
-        state,
-        lat,
-        lng,
-        phone,
-        website,
-        google_maps_url,
-        rating,
-        review_count,
-        price_level,
-        opening_hours,
-        types,
-        opening_year,
-        opening_month,
-        first_review_date,
-        independent_flag,
-        pos_hint,
-        notes
+        name, place_id, address, suburb, postcode, state,
+        lat, lng, phone, website, google_maps_url,
+        rating, review_count, price_level, opening_hours,
+        types, opening_year, opening_month, first_review_date,
+        independent_flag, pos_hint, notes
     ])
 
-    time.sleep(2)
+    time.sleep(2)  # Rate limiting
 
 print("\nRows collected:", len(rows))
 
-
+# Define DataFrame columns
 columns = [
-    "name",
-    "place_id",
-    "address",
-    "suburb",
-    "postcode",
-    "state",
-    "lat",
-    "lng",
-    "phone",
-    "website",
-    "google_maps_url",
-    "rating",
-    "user_ratings_total",
-    "price_level",
-    "opening_hours",
-    "types",
-    "opening_year",
-    "opening_month",
-    "first_review_date",
-    "independent_flag",
-    "pos_hint",
-    "notes"
+    "name", "place_id", "address", "suburb", "postcode", "state",
+    "lat", "lng", "phone", "website", "google_maps_url",
+    "rating", "user_ratings_total", "price_level", "opening_hours",
+    "types", "opening_year", "opening_month", "first_review_date",
+    "independent_flag", "pos_hint", "notes"
 ]
 
+# Create DataFrame and save CSV
 df = pd.DataFrame(rows, columns=columns)
-
-df.head(20)
-
 df.to_csv("adelaide_cafes_dataset.csv", index=False)
-
-
-
-
-
-
-
-df.to_csv("adelaide_cafes_dataset.csv", index=False)
-
+print("CSV created successfully: adelaide_cafes_dataset.csv")
