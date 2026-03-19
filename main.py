@@ -7,7 +7,6 @@ import pandas as pd
 import time
 import datetime
 
-# Load API key from environment
 API_KEY = os.getenv("GOOGLE_API_KEY")
 if not API_KEY:
     raise ValueError("API key not found! Set GOOGLE_API_KEY in environment.")
